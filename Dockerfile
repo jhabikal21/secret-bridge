@@ -5,6 +5,7 @@ LABEL maintainer="labs@duo.com"
 RUN apk add git make bash grep
 WORKDIR /usr/src/app
 
+
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
