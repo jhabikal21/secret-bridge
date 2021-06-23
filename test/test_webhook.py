@@ -1,6 +1,7 @@
 import unittest
 import json
 
+
 from constants import (GITHUB_EVENT_TYPE_HEADER, GITHUB_SIGNATURE_HEADER,
                        WEBHOOK_PUSH_EVENT_TYPE)
 from commands.webhook.server import app, generate_event
