@@ -1,7 +1,5 @@
 FROM python:3-alpine
 
-LABEL maintainer="labs@duo.com"
-
 RUN apk add git make bash grep
 WORKDIR /usr/src/app
 

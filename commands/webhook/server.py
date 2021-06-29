@@ -6,6 +6,7 @@ import hmac
 import hashlib
 import logging
 import json
+import requests
 
 from processor import Processor
 from constants import (GITHUB_SIGNATURE_HEADER, GITHUB_EVENT_TYPE_HEADER,
@@ -23,41 +24,27 @@ def verify_signature(secret, request):
         secret {str} -- The HMAC secret
         request {flask.request} -- The HTTP request received
     """
-#    print("Inside Function. print secret from config variable")
-#    print(secret)
 
     if not secret:
         logging.error('No HMAC secret configured.')
         return False
     secret = secret.encode()
-#    print ("Encoded secret")
-#    print(secret)
-#    print ("Request header received from post webhook call")
-#    print(request)
 
     # Verify that the X-Hub-Signature header is provided
     signature_header = request.headers.get(GITHUB_SIGNATURE_HEADER)
     if not signature_header:
         logging.error('No {} header provided'.format(GITHUB_SIGNATURE_HEADER))
         return False
-#    print("signature header from Post request header ")
-#    print(signature_header)
-
+    
     signature_parts = signature_header.split('=')
-#    print("Signature part from signature header")
-#    print(signature_parts)
 
     if len(signature_parts) < 2 or signature_parts[0] != "sha1":
         return False
     
     signature = signature_parts[1]
+
     # Verify that the received signature is valid
-#    print("Request data")
-#    print(request.data)
     digest = hmac.new(secret, request.data, hashlib.sha1).hexdigest()
-#    print("Compare Signature & Digest secret")
-#    print(signature)
-#    print(digest)
     return hmac.compare_digest(signature, digest)
 
 
@@ -70,9 +57,6 @@ def generate_event(payload, type=WEBHOOK_PUSH_EVENT_TYPE):
     Arguments:
         payload {dict} -- The webhook event payload
     """
-#    print("Print Payload")
-#    print(payload)
-
     payload['repo'] = payload['repository']
     payload.pop('repository')
 
@@ -83,17 +67,26 @@ def generate_event(payload, type=WEBHOOK_PUSH_EVENT_TYPE):
     payload['repo']['url'] = 'https://api.github.com/repos/{}'.format(
         payload['repo']['full_name'])
 
+    if type == "pull_request":
+        url = payload['pull_request']['_links']['commits']['href']
+
+        commit=requests.get(url)
+        payload['commits'] = commit.json()
+
     for commit in payload['commits']:
-        commit['sha'] = commit['id']
+        commit['sha'] = commit['sha']
 
     payload['payload'] = {'commits': payload['commits']}
-    payload.pop('commits')
-
     return Github().create_from_raw_data(Event.Event, payload)
 
 
-app = Flask(__name__)
+def notify_result_pr_commit(payload, type=WEBHOOK_PUSH_EVENT_TYPE):
+    prcommit_url = payload['pull_request']['_links']['comments']['href']
+    r=requests.post(prcommit_url, data = '{"body": "Secret-Scan result is posted on slack #secret-scan, please review & add fix for any sensitive Secrets before approving merge request."}', headers = {"Authorization": "Token abc"})
+    return ('Comment posted on PR', 200)
 
+
+app = Flask(__name__)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -107,8 +100,6 @@ def webhook():
         return ('', 204)
 
     secret = app.config.get('GITHUB_WEBHOOK_SECRET')
-#    print("Ourside Function coming from variable")
-#    print(secret)
 
     if not verify_signature(secret, request):
         abort(400, 'Bad signature')
@@ -116,4 +107,6 @@ def webhook():
 
     event = generate_event(request.json)
     Processor.process_event(event)
+    notify_result_pr_commit(request.json)
+    
     return ('Scan Completed', 204)
