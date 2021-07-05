@@ -1,6 +1,8 @@
 from github import Github, Event
-from flask import Flask, request, abort
+from flask import Flask, request, abort, copy_current_request_context
 from urllib.parse import urlparse
+from threading import Thread
+from config import Config
 
 import hmac
 import hashlib
@@ -82,7 +84,8 @@ def generate_event(payload, type=WEBHOOK_PUSH_EVENT_TYPE):
 
 def notify_result_pr_commit(payload, type=WEBHOOK_PUSH_EVENT_TYPE):
     prcommit_url = payload['pull_request']['_links']['comments']['href']
-    r=requests.post(prcommit_url, data = '{"body": "Secret-Scan result is posted on slack #secret-scan, please review & add fix for any sensitive Secrets before approving merge request."}', headers = {"Authorization": "Token abc"})
+    access_token = Config.webhook.get('access_token')
+    r=requests.post(prcommit_url, data = '{"body": "Secret-Scan result is posted on slack #secret-scan, please review & add fix for any sensitive Secrets before approving merge request."}', headers = {"Authorization": "Token "+access_token})
     return ('Comment posted on PR', 200)
 
 
@@ -105,8 +108,24 @@ def webhook():
         abort(400, 'Bad signature')
         return
 
+    # event = generate_event(request.json)
+    @copy_current_request_context
+    def foo_main():
+        # insert your code here
+        do_long_time_webhook(request.json)
+    Thread(target = foo_main).start()
+    # Processor.process_event(event)
+    # notify_result_pr_commit(request.json)
+    
+    return ('Scan Initiated', 204)
+
+
+def do_long_time_webhook(payload):
+    """Big function doing some job here I just put pandas dataframe to csv conversion"""
+
     event = generate_event(request.json)
     Processor.process_event(event)
+    print("NotifyPR pending")
     notify_result_pr_commit(request.json)
-    
-    return ('Scan Completed', 204)
+
+    return print('Scan completed Successfully')
