@@ -1,4 +1,6 @@
 PUSH_EVENT_TYPE = 'PushEvent'
-WEBHOOK_PUSH_EVENT_TYPE = 'push'
+PR_EVENT_TYPE = 'PullRequestEvent'
+# WEBHOOK_PUSH_EVENT_TYPE = 'push'
+WEBHOOK_PUSH_EVENT_TYPE = 'pull_request'
 GITHUB_SIGNATURE_HEADER = 'X-Hub-Signature'
 GITHUB_EVENT_TYPE_HEADER = 'X-GitHub-Event'
